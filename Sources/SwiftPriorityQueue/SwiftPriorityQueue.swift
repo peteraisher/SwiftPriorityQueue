@@ -75,7 +75,7 @@ public struct PriorityQueue<T: Comparable> {
     public mutating func pop() -> T? {
         
         if heap.isEmpty { return nil }
-        if heap.count == 1 { return heap.removeFirst() }  // added for Swift 2 compatibility
+        if heap.count == 1 { return heap.removeLast() }  // added for Swift 2 compatibility
         // so as not to call swap() with two instances of the same location
         heap.swapAt(0, heap.count - 1)
         let temp = heap.removeLast()
@@ -128,24 +128,31 @@ public struct PriorityQueue<T: Comparable> {
     // Based on example from Sedgewick p 316
     private mutating func sink(_ index: Int) {
         var index = index
-        while 2 * index + 1 < heap.count {
-            
-            var j = 2 * index + 1
-            
-            if j < (heap.count - 1) && ordered(heap[j], heap[j + 1]) { j += 1 }
-            if !ordered(heap[index], heap[j]) { break }
-            
-            heap.swapAt(index, j)
-            index = j
+        let count = heap.count
+        heap.withUnsafeMutableBufferPointer { bufferPointer in
+            let heapPointer = bufferPointer.baseAddress!
+            while 2 * index + 1 < count {
+                
+                var j = 2 * index + 1
+                
+                if j < (count - 1) && ordered(heapPointer[j], heapPointer[j + 1]) { j += 1 }
+                if !ordered(heapPointer[index], heapPointer[j]) { break }
+                
+                heapPointer.swapAt(index, j)
+                index = j
+            }
         }
     }
     
     // Based on example from Sedgewick p 316
     private mutating func swim(_ index: Int) {
         var index = index
-        while index > 0 && ordered(heap[(index - 1) / 2], heap[index]) {
-            heap.swapAt((index - 1) / 2, index)
-            index = (index - 1) / 2
+        heap.withUnsafeMutableBufferPointer { bufferPointer in
+            let heapPointer = bufferPointer.baseAddress!
+            while index > 0 && ordered(heapPointer[(index - 1) / 2], heapPointer[index]) {
+                heapPointer.swapAt((index - 1) / 2, index)
+                index = (index - 1) / 2
+            }
         }
     }
 }
@@ -184,4 +191,14 @@ extension PriorityQueue: CustomStringConvertible, CustomDebugStringConvertible {
     
     public var description: String { return heap.description }
     public var debugDescription: String { return heap.debugDescription }
+}
+
+internal extension UnsafeMutablePointer {
+    @inlinable
+    @inline(__always)
+    func swapAt(_ i: Int, _ j: Int) {
+        let temp = (self + i).move()
+        (self + i).moveInitialize(from: self + j, count: 1)
+        (self + j).initialize(to: temp)
+    }
 }
